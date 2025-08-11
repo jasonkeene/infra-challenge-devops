@@ -76,7 +76,7 @@ func TestFetchHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	handler := fetchHandler()
+	handler := fetchHandler("dummy-secret-key-12345")
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)

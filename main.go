@@ -26,6 +26,7 @@ func main() {
 	port := getEnv("PORT", "8080")
 	environment := getEnv("ENVIRONMENT", "development")
 	version := getEnv("VERSION", "1.0.0")
+	apiKey := getEnv("API_KEY", "dummy-secret-key-12345")
 
 	log.Printf("Starting server on port %s", port)
 	log.Printf("Environment: %s", environment)
@@ -34,7 +35,7 @@ func main() {
 	http.HandleFunc("/health", healthHandler())
 	http.HandleFunc("/info", infoHandler())
 	http.HandleFunc("/nytime", nyTimeHandler())
-	http.HandleFunc("/fetch", fetchHandler())
+	http.HandleFunc("/fetch", fetchHandler(apiKey))
 
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
@@ -100,7 +101,7 @@ func nyTimeHandler() http.HandlerFunc {
 	}
 }
 
-func fetchHandler() http.HandlerFunc {
+func fetchHandler(apiKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get URL from query parameter, default to a public API
 		targetURL := "https://httpbin.org/json"
@@ -110,8 +111,18 @@ func fetchHandler() http.HandlerFunc {
 			Timeout: 10 * time.Second,
 		}
 
+		// Create request with custom headers including API key
+		req, err := http.NewRequest("GET", targetURL, nil)
+		if err != nil {
+			http.Error(w, "Failed to create request: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Add API key and other headers
+		req.Header.Set("X-API-Key", apiKey)
+
 		// Make HTTP request
-		resp, err := client.Get(targetURL)
+		resp, err := client.Do(req)
 		if err != nil {
 			http.Error(w, "Failed to fetch data: "+err.Error(), http.StatusInternalServerError)
 			return
