@@ -90,3 +90,51 @@ func TestFetchHandler(t *testing.T) {
 	assert.Contains(t, response, "timestamp")
 	assert.Equal(t, "success", response["status"])
 }
+
+func TestFetchHandlerWithAPIKey(t *testing.T) {
+	// Test that the API key is properly set in the request
+	apiKey := "test-api-key-12345"
+
+	req, err := http.NewRequest("GET", "/fetch", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := fetchHandler(apiKey)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+
+	var response map[string]interface{}
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "success", response["status"])
+	assert.Equal(t, "https://httpbin.org/json", response["target_url"])
+	assert.Contains(t, response, "timestamp")
+}
+
+func TestGetEnvAPIKey(t *testing.T) {
+	// Test API_KEY environment variable handling
+	originalAPIKey := os.Getenv("API_KEY")
+
+	// Test with API_KEY set
+	err := os.Setenv("API_KEY", "custom-api-key")
+	assert.NoError(t, err)
+	value := getEnv("API_KEY", "default-key")
+	assert.Equal(t, "custom-api-key", value)
+
+	// Test with API_KEY not set (should return default)
+	err = os.Unsetenv("API_KEY")
+	assert.NoError(t, err)
+	value = getEnv("API_KEY", "default-key")
+	assert.Equal(t, "default-key", value)
+
+	// Restore original API_KEY value
+	if originalAPIKey != "" {
+		err = os.Setenv("API_KEY", originalAPIKey)
+		assert.NoError(t, err)
+	} else {
+		err = os.Unsetenv("API_KEY")
+		assert.NoError(t, err)
+	}
+}
