@@ -29,11 +29,13 @@ This is a simple Go web service with the following endpoints:
 - `GET /health` - Health check endpoint (returns 204 No Content)
 - `GET /info` - Application information
 - `GET /nytime` - Current New York time
+- `GET /fetch` - Fetches data from an external API with API key authentication
 
 **Environment Variables:**
 - `PORT` - Server port (default: 8080)
 - `ENVIRONMENT` - Environment name (default: development)
 - `VERSION` - Application version (default: 1.0.0)
+- `API_KEY` - API key for external API authentication (default: dummy-secret-key-12345)
 
 ## 🚀 Getting Started
 
@@ -50,3 +52,23 @@ This is a simple Go web service with the following endpoints:
    go test -v
    go test -v -cover
    ```
+
+4. **Test the fetch endpoint** with API key:
+   ```bash
+   # Set a custom API key
+   export API_KEY="your-secret-api-key"
+   
+   # Test the fetch endpoint
+   curl http://localhost:8080/fetch
+   
+   # Or test with the default API key
+   curl http://localhost:8080/fetch
+   ```
+
+## 🔐 API Key Configuration
+
+The application uses an `API_KEY` environment variable to authenticate with external APIs. The fetch endpoint (`/fetch`) automatically includes this API key in the `X-API-Key` header when making requests to external services.
+
+- **Default value**: `dummy-secret-key-12345` (for development/testing)
+- **Production use**: Set `API_KEY` to your actual API key
+- **Security**: Never commit real API keys to version control
