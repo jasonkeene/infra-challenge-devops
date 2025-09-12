@@ -41,7 +41,7 @@ docker-build:
 # Run Docker container
 docker-run:
 	@echo "Running Docker container..."
-	docker run -p 8080:8080 -d PORT=8080 -e ENVIRONMENT=docker -e VERSION=1.0.0 devops-challenge:latest
+	docker run -p 8080:8080 -e PORT=8080 -e ENVIRONMENT=docker -e VERSION=1.0.0 devops-challenge:latest
 
 # Run linter (requires golangci-lint to be installed)
 lint:
