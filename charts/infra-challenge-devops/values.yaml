@@ -1,0 +1,3 @@
+environment: development
+image: main
+cert_arn: only-needed-for-prod-deployment

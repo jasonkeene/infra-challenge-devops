@@ -46,6 +46,6 @@ EXPOSE 8080
 
 USER 1001:1001
 
-COPY --from=build /cmd /
+COPY --from=build --chown=1001:1001 /cmd /
 
 ENTRYPOINT ["/cmd"]
