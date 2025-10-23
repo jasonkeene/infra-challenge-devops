@@ -1,0 +1,65 @@
+
+# on any push to the repo's main branch
+
+# build helm chart
+# push chart to oci registry
+
+name: Chart
+
+on:
+  workflow_run:
+    workflows:
+    - Tests
+    branches:
+    - main
+    types:
+    - completed
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  setup:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+    steps:
+      - id: build-matrix
+        run: |
+          json=$(echo '${{ vars.AWS_REGIONS }}' | tr ',' '\n' | jq -R . | jq -cs .)
+          echo "matrix=$json" >> $GITHUB_OUTPUT
+
+  chart:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: ${{ fromJson(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECR_IAM_ROLE_ARN }}
+          aws-region: ${{ matrix.region }}
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+      - uses: mikefarah/yq@v4.44.3
+      - name: Build and Push
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ matrix.region }}
+        run: |
+          echo "Creating repo in $AWS_REGION (if needed)..."
+          aws ecr create-repository --repository-name infra-challenge-devops/chart/infra-challenge-devops || true
+
+          echo "Building and pushing chart to $AWS_REGION..."
+          CHART_VERSION=$(yq -r .version charts/infra-challenge-devops/Chart.yaml)
+          CHART_FILE="bin/infra-challenge-devops-${CHART_VERSION}.tgz"
+          REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          helm package charts/infra-challenge-devops --destination bin
+          aws ecr get-login-password | helm registry login --username AWS --password-stdin $REGISTRY
+          helm push $CHART_FILE "oci://$REGISTRY/infra-challenge-devops/chart"

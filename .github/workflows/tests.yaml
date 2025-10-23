@@ -1,0 +1,95 @@
+
+# on any push to the repo
+
+# optimization
+# - ignore a bunch of stuff that doesn't affect code
+#   - deployment source files
+#   - development files (gitignore, envfiles)
+#   - anything that isn't affecting the output of the compiler
+
+# make sure go image present for compiler
+# - test
+# - linter
+# - fmt (git status to verify no diff)
+# run these in parallel
+
+
+name: Tests
+
+on:
+  push:
+    branches:
+    - '**'
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Run build
+      run: make build
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Run tests
+      run: |
+        # try to run tests up to 3 times since some of the tests
+        # rely on network io and are flaky
+        n=0
+        m=5
+        until [ $n -ge $m ]; do
+          make test && break
+          n=$((n+1))
+          [ $n -lt $m ] && echo "Test run failed. Retrying... (attempt $((n+1)))"
+        done
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - uses: golangci/golangci-lint-action@v8
+      with:
+        version: v2.1
+    - name: Run linter
+      run: make lint
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Run fmt
+      run: |
+        make fmt
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Repo is dirty, run make fmt locally first and repush your commit"
+          exit 1
+        fi
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Run tidy
+      run: |
+        make deps
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Repo is dirty, run make deps locally first and repush your commit"
+          exit 1
+        fi

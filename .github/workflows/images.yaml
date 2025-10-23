@@ -1,0 +1,89 @@
+
+# on any push to the main branch
+
+# optimization
+# - multi-arch when needed
+# - cross compile go binaries without emulation
+# - use qemu worker for mulit-arch only when needed
+
+# build images
+# push images
+
+
+name: Images
+
+on:
+  workflow_run:
+    workflows:
+    - Tests
+    branches:
+    - main
+    types:
+    - completed
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  setup:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+    steps:
+      - id: build-matrix
+        run: |
+          json=$(echo '${{ vars.AWS_REGIONS }}' | tr ',' '\n' | jq -R . | jq -cs .)
+          echo "matrix=$json" >> $GITHUB_OUTPUT
+
+  images:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: ${{ fromJson(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECR_IAM_ROLE_ARN }}
+          aws-region: ${{ matrix.region }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and Push
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ matrix.region }}
+        run: |
+          echo "Creating repos in $AWS_REGION (if needed)..."
+          aws ecr create-repository --repository-name infra-challenge-devops/main --image-scanning-configuration scanOnPush=true || true
+
+          echo "Building and pushing images to $AWS_REGION..."
+          aws ecr get-login-password | \
+            docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          docker buildx bake --push -f - <<EOF
+          group "default" {
+            targets = ["multi", "amd64", "arm64"]
+          }
+
+          target "multi" {
+            context    = "."
+            dockerfile = "Dockerfile"
+            platforms  = ["linux/amd64", "linux/arm64"]
+            tags       = ["${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra-challenge-devops/main:latest"]
+          }
+
+          target "amd64" {
+            context    = "."
+            dockerfile = "Dockerfile"
+            platforms  = ["linux/amd64"]
+            tags       = ["${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra-challenge-devops/main:amd64"]
+          }
+
+          target "arm64" {
+            context    = "."
+            dockerfile = "Dockerfile"
+            platforms  = ["linux/arm64"]
+            tags       = ["${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra-challenge-devops/main:arm64"]
+          }
+          EOF

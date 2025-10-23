@@ -1,0 +1,76 @@
+# default replicas of say 3
+# one container
+# no init/sidcar containers
+# can set ports for documentation
+# secretRef for the API TOKEN
+# securityContext/runAsUser - to set user to non-root
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main
+  labels:
+    app: main
+spec:
+  # this will be drivien by HPA
+  replicas: 3
+  selector:
+    matchLabels:
+      app: main
+  template:
+    metadata:
+      labels:
+        app: main
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: main
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      containers:
+      - name: main
+        image: {{ .Values.image }}
+        imagePullPolicy: Always
+        env:
+        - name: ENVIRONMENT
+          value: {{ .Values.environment }}
+        - name: VERSION
+          value: {{ .Chart.AppVersion }}
+          # TODO: this is temporary, replace with vault injection and
+          # read from in-memory volume for better security
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-key
+              key: value
+        resources:
+          requests:
+            cpu: 1
+            memory: 100Mi
+        ports:
+        - name: http
+          containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+        securityContext:
+          runAsUser: 1001
+          runAsGroup: 1001
+          runAsNonRoot: true

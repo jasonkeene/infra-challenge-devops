@@ -45,6 +45,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.envrc*.local
 
 # Build artifacts
 bin/
